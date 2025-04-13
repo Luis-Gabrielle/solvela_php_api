@@ -17,7 +17,7 @@ try {
     $userId = $_GET['userId'];
 
     // Query to fetch all card details for the given userId
-    $stmt = $pdo->prepare("SELECT CardNumber, CurrentBalance, CardHolderName FROM carddetails WHERE Id = :userId");
+    $stmt = $pdo->prepare("SELECT CardNumber, CurrentBalance, CardHolderName, ExpiryDate, CVV FROM carddetails WHERE Id = :userId");
     $stmt->bindParam(':userId', $userId, PDO::PARAM_INT);
     $stmt->execute();
 
