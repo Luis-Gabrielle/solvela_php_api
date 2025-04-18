@@ -10,13 +10,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
-// Database connection
-$host = "localhost";
-$user = "root";
-$password = "";
-$database = "atmd_db";
+require_once 'db_connection.php';
 
-$conn = new mysqli($host, $user, $password, $database);
+$conn = new mysqli($host, $username, $password, $db_name);
 
 if ($conn->connect_error) {
     die(json_encode([

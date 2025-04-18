@@ -6,9 +6,9 @@ header('Access-Control-Allow-Headers: Content-Type');
 header('Content-Type: application/json');
 
 $host = 'localhost';
-$db_name = 'atmd_db';
-$username = 'root'; // Default XAMPP username
-$password = ''; // Default XAMPP password
+$db_name = 'u591433413_solvela';
+$username = 'u591433413_solvela'; // Default XAMPP username
+$password = 'u3lkVFTjlGX'; // Default XAMPP password
 
 try {
     $conn = new PDO("mysql:host=$host;dbname=$db_name", $username, $password);
