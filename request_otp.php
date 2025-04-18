@@ -1,15 +1,12 @@
 <?php
-// Turn off error display (prevents HTML errors breaking JSON)
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
-require 'vendor/autoload.php'; // Ensure you have PHPMailer installed via Composer
+// Start output buffering to capture any unexpected output
+ob_start();
+
+// Turn off error display
 error_reporting(0);
 ini_set('display_errors', 0);
 
-// Start output buffering
-ob_start();
-
-// Set timezone to ensure consistency
+// Set timezone to ensure consistency - SAME AS IN REQUEST_OTP.PHP
 date_default_timezone_set('Asia/Manila');
 
 // Set headers
@@ -25,9 +22,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 // Create database connection
 $host = "localhost";
-$user = "root";
-$password = "";
-$database = "atmd_db";
+$user = "u591433413_solvela";
+$password = "Solvela_Bank123$";
+$database = "u591433413_solvela";
 
 try {
     $conn = new mysqli($host, $user, $password, $database);
@@ -45,89 +42,90 @@ try {
     }
     
     // Validate required fields
-    if (empty($data['fullName']) || empty($data['email'])) {
+    if (!isset($data['userId']) || !isset($data['otp'])) {
         throw new Exception("Missing required fields");
     }
     
-    $fullName = $conn->real_escape_string($data['fullName']);
-    $email = $conn->real_escape_string($data['email']);
+    $userId = intval($data['userId']);
+    // Ensure OTP is properly formatted (string with 6 digits)
+    $otp = (string)$conn->real_escape_string($data['otp']);
+    $otp = str_pad($otp, 6, '0', STR_PAD_LEFT);
     
-    // Verify user exists
-    $stmt = $conn->prepare("SELECT Id FROM carddetails WHERE CardHolderName = ? AND Email = ?");
-    $stmt->bind_param("ss", $fullName, $email);
+    // Verify OTP
+    $stmt = $conn->prepare("SELECT * FROM otp_codes WHERE user_id = ? AND otp = ? AND expiry > NOW()");
+    $stmt->bind_param("is", $userId, $otp);
     $stmt->execute();
     $result = $stmt->get_result();
     
     if ($result->num_rows === 0) {
-        throw new Exception("No account found with this name and email");
+        // Check if user exists with this ID
+        $checkUser = $conn->prepare("SELECT COUNT(*) as count FROM otp_codes WHERE user_id = ?");
+        $checkUser->bind_param("i", $userId);
+        $checkUser->execute();
+        $userExists = $checkUser->get_result()->fetch_assoc()['count'];
+        
+        // Check if OTP exists but expired
+        $checkExpired = $conn->prepare("SELECT COUNT(*) as count FROM otp_codes WHERE user_id = ? AND otp = ? AND expiry <= NOW()");
+        $checkExpired->bind_param("is", $userId, $otp);
+        $checkExpired->execute();
+        $isExpired = $checkExpired->get_result()->fetch_assoc()['count'];
+        
+        if ($userExists == 0) {
+            throw new Exception("No OTP found for this user");
+        } else if ($isExpired > 0) {
+            throw new Exception("OTP has expired");
+        } else {
+            throw new Exception("Invalid OTP");
+        }
     }
     
-    $user = $result->fetch_assoc();
-    $userId = $user['Id'];
+    // OTP is valid, get user data
+    $userStmt = $conn->prepare("SELECT c.Id, c.CardHolderName, c.Email, c.CardNumber, c.CurrentBalance, c.SavingsBalance 
+                               FROM carddetails c
+                               WHERE c.Id = ?");
+    $userStmt->bind_param("i", $userId);
+    $userStmt->execute();
+    $userResult = $userStmt->get_result();
     
-    // Generate 6-digit OTP
-    $otp = sprintf('%06d', mt_rand(0, 999999));
+    if ($userResult->num_rows === 0) {
+        throw new Exception("User not found");
+    }
     
-    // Create OTP table if it doesn't exist
-    $conn->query("CREATE TABLE IF NOT EXISTS otp_codes (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        otp VARCHAR(6) NOT NULL,
-        expiry DATETIME NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES carddetails(Id)
-    )");
+    $userData = $userResult->fetch_assoc();
     
-    // Delete existing OTPs for this user
+    // Delete the used OTP
     $conn->query("DELETE FROM otp_codes WHERE user_id = $userId");
     
-    // Set 15-minute expiry
-    $expiry = date('Y-m-d H:i:s', strtotime('+5 minutes'));
-
-    // Store OTP in database
-    $stmtOtp = $conn->prepare("INSERT INTO otp_codes (user_id, otp, expiry) VALUES (?, ?, ?)");
-    $stmtOtp->bind_param("iss", $userId, $otp, $expiry);
-    
-    if (!$stmtOtp->execute()) {
-        throw new Exception("Failed to store OTP");
-    }
-    
-    $mail = new PHPMailer(true);
-
-    try {
-        // Server settings
-        $mail->isSMTP();
-        $mail->Host = 'smtp.gmail.com'; // Gmail SMTP server
-        $mail->SMTPAuth = true;
-        $mail->Username = 'solvela.bank@gmail.com'; // Replace with your Gmail address
-        $mail->Password = 'fdhl neac ncqi cose'; // Replace with your Gmail app password
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port = 587;
-
-        // Recipients
-        $mail->setFrom('solvela.bank@gmail.com', 'Solvela'); // Replace with your email and app name
-        $mail->addAddress($email, $fullName);
-        $mail->isHTML(true);
-        $mail->Subject = 'Your OTP Code';
-        $mail->Body = "Hello $fullName,<br><br>Your OTP code is: <strong>$otp</strong><br>This code will expire in 5 minutes.<br><br>Thank you.";
-
-        $mail->send();
-    } catch (Exception $e) {
-        throw new Exception("Failed to send OTP email: " . $mail->ErrorInfo);
-    }
-    // For testing purposes, return the OTP in response
-    // In production, you would send via email and not return it here
+    // Clear output buffer before sending JSON
     ob_end_clean();
+    $pinStmt = $conn->prepare("SELECT Pin FROM pindetails WHERE CardId = ?");
+    $pinStmt->bind_param("i", $userId);
+    $pinStmt->execute();
+    $pinResult = $pinStmt->get_result();
+
+    $pin = null;
+    if ($pinResult->num_rows > 0) {
+        $pinData = $pinResult->fetch_assoc();
+        $pin = $pinData['Pin'];
+    }
     echo json_encode([
         'success' => true,
-        'message' => 'OTP generated successfully',
-        'userId' => $userId,
-        'testOtp' => $otp, // Remove this in production
-        'expiryTime' => $expiry, // Include this for debugging
-        'serverTime' => date('Y-m-d H:i:s') // Include current server time
+        'message' => 'OTP verified successfully',
+        'data' => [
+            'userId' => $userData['Id'],
+            'name' => $userData['CardHolderName'],
+            'email' => $userData['Email'],
+            'cardNumber' => $userData['CardNumber'],
+            'currentBalance' => $userData['CurrentBalance'],
+            'savingsBalance' => $userData['SavingsBalance'],
+            'pin' => $pin, // Include PIN in response
+        ]
     ]);
     
 } catch (Exception $e) {
+    // Clear output buffer before sending error JSON
+    ob_end_clean();
+    
     http_response_code(400);
     echo json_encode([
         'success' => false,

@@ -8,7 +8,7 @@ header('Content-Type: application/json');
 $host = 'localhost';
 $db_name = 'u591433413_solvela';
 $username = 'u591433413_solvela'; // Default XAMPP username
-$password = 'u3lkVFTjlGX'; // Default XAMPP password
+$password = 'Solvela_Bank123$'; // Default XAMPP password
 
 try {
     $conn = new PDO("mysql:host=$host;dbname=$db_name", $username, $password);

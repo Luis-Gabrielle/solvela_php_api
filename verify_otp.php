@@ -22,9 +22,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 // Create database connection
 $host = "localhost";
-$user = "root";
-$password = "";
-$database = "atmd_db";
+$user = "u591433413_solvela";
+$password = "Solvela_Bank123$";
+$database = "u591433413_solvela";
 
 try {
     $conn = new mysqli($host, $user, $password, $database);

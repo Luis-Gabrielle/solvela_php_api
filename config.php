@@ -1,9 +1,9 @@
 <?php
 // config.php - Database configuration
 $host = 'localhost';
-$dbname = 'atmd_db';
-$username = 'root';
-$password = '';
+$dbname = 'u591433413_solvela';
+$username = 'u591433413_solvela'; // Default XAMPP username
+$password = 'u3lkVFTjlGX'; // Default XAMPP password
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname", $username, $password);
